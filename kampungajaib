@@ -1,0 +1,305 @@
+-- Load Rayfield UI Library
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- Create Window
+local Window = Rayfield:CreateWindow({
+   Name = "PRASZ PEDIA HUB",
+   LoadingTitle = "Memuat PRASZ PEDIA HUB...",
+   LoadingSubtitle = "Auto Cook & Multi-Auto Buy System",
+   ConfigurationSaving = {
+      Enabled = false,
+   },
+   Discord = {
+      Enabled = false
+   },
+   KeySystem = false
+})
+
+-- Create Tabs
+local CookTab = Window:CreateTab("Auto Cook", 4483362458)
+local ShopTab = Window:CreateTab("Auto Buy Seed", 4483362458)
+
+-- Remote Services & Players
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RequestRemote = ReplicatedStorage:WaitForChild("Tani"):WaitForChild("Remotes"):WaitForChild("Request")
+
+---------------------------------------------------------
+-- 1. AUTO COOK SYSTEM
+---------------------------------------------------------
+
+local recipeMap = {
+    ["Puding Waktu"] = "puding_waktu",
+    ["Selai Kristal"] = "selai_kristal",
+    ["Es Durian"] = "es_durian",
+    ["Minyak Sawit"] = "minyak_sawit",
+    ["Es Semangka"] = "es_semangka"
+}
+
+local autoCook = false
+local selectedRecipeName = "Puding Waktu"
+
+local function startAutoCook()
+    task.spawn(function()
+        while autoCook do
+            local recipeId = recipeMap[selectedRecipeName] or selectedRecipeName
+            local args = {
+                "cook",
+                recipeId
+            }
+            
+            pcall(function()
+                return RequestRemote:InvokeServer(unpack(args))
+            end)
+
+            task.wait(5) -- Jeda 5 detik per siklus
+        end
+    end)
+end
+
+CookTab:CreateDropdown({
+   Name = "Pilih Resep",
+   Options = {"Puding Waktu", "Selai Kristal", "Es Durian", "Minyak Sawit", "Es Semangka"},
+   CurrentOption = {"Puding Waktu"},
+   MultipleOptions = false,
+   Flag = "RecipeDropdown",
+   Callback = function(Option)
+      selectedRecipeName = Option[1]
+      Rayfield:Notify({
+         Title = "PRASZ PEDIA HUB",
+         Content = "Target masakan diubah ke: " .. selectedRecipeName,
+         Duration = 2,
+         Image = 4483362458,
+      })
+   end,
+})
+
+CookTab:CreateToggle({
+   Name = "Auto Cook (Mulai Memasak)",
+   CurrentValue = false,
+   Flag = "AutoCookToggle",
+   Callback = function(Value)
+      autoCook = Value
+      if autoCook then
+         Rayfield:Notify({
+            Title = "Auto Cook Aktif",
+            Content = "Memulai memasak " .. selectedRecipeName .. " (Jeda 5 detik).",
+            Duration = 3,
+            Image = 4483362458,
+         })
+         startAutoCook()
+      else
+         Rayfield:Notify({
+            Title = "Auto Cook Berhenti",
+            Content = "Memasak otomatis dimatikan.",
+            Duration = 3,
+            Image = 4483362458,
+         })
+      end
+   end,
+})
+
+CookTab:CreateInput({
+   Name = "Resep Lainnya (Custom ID)",
+   PlaceholderText = "Ketik ID resep di sini...",
+   RemoveTextOnFocusLost = false,
+   Callback = function(Text)
+      if Text and Text ~= "" then
+          selectedRecipeName = Text
+          Rayfield:Notify({
+             Title = "PRASZ PEDIA HUB",
+             Content = "Target resep diubah ke: " .. selectedRecipeName,
+             Duration = 3,
+             Image = 4483362458,
+          })
+      end
+   end,
+})
+
+---------------------------------------------------------
+-- 2. MULTI AUTO BUY SEED SYSTEM
+---------------------------------------------------------
+
+local seedMap = {
+    ["Timun"] = "timun",
+    ["Padi"] = "padi",
+    ["Jagung"] = "jagung",
+    ["Bawang Merah"] = "bawang_merah",
+    ["Bawang Putih"] = "bawang_putih",
+    ["Cabe"] = "cabe",
+    ["Terong"] = "terong",
+    ["Semangka"] = "semangka",
+    ["Ubi Ungu"] = "ubi_ungu",
+    ["Pisang"] = "pisang",
+    ["Lidah Buaya"] = "lidah_buaya",
+    ["Durian"] = "durian",
+    ["Jamur Raksasa"] = "jamur_raksasa",
+    ["Pohon Buah Kristal"] = "pohon_buah_kristal"
+}
+
+local autoBuy = false
+local selectedSeeds = {"Timun"}
+local buyAmount = 1
+local isMaxAmount = false
+
+-- Pengecekan Ketersediaan Stok
+local function checkSeedAvailable(seedId)
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if playerGui then
+        local shopGui = playerGui:FindFirstChild("Shop") or playerGui:FindFirstChild("Toko") or playerGui:FindFirstChild("MainGui")
+        if shopGui then
+            local seedFrame = shopGui:FindFirstChild(seedId, true)
+            if seedFrame then
+                local stockLabel = seedFrame:FindFirstChild("Stock") or seedFrame:FindFirstChild("Stok") or seedFrame:FindFirstChild("Amount")
+                if stockLabel and (stockLabel:IsA("TextLabel") or stockLabel:IsA("TextBox")) then
+                    local stockNum = tonumber(string.match(stockLabel.Text, "%d+"))
+                    if stockNum and stockNum <= 0 then
+                        return false
+                    end
+                end
+            end
+        end
+    end
+    return true
+end
+
+-- Function Multi Auto Buy Loop
+local function startAutoBuy()
+    task.spawn(function()
+        while autoBuy do
+            if #selectedSeeds > 0 then
+                for _, seedName in ipairs(selectedSeeds) do
+                    if not autoBuy then break end
+                    
+                    local seedId = seedMap[seedName] or seedName
+                    local isAvailable = checkSeedAvailable(seedId)
+
+                    if isAvailable then
+                        local amountToBuy = isMaxAmount and 9999 or buyAmount
+                        local args = {
+                            "buySeed",
+                            seedId,
+                            amountToBuy
+                        }
+
+                        pcall(function()
+                            return RequestRemote:InvokeServer(unpack(args))
+                        end)
+
+                        task.wait(0.5) -- Jeda antar pembelian benih berbeda
+                    end
+                end
+            end
+            task.wait(1.5) -- Jeda antar siklus pengecekan ulang
+        end
+    end)
+end
+
+ShopTab:CreateDropdown({
+   Name = "Pilih Benih (Bisa Pilih Banyak)",
+   Options = {
+       "Timun",
+       "Padi",
+       "Jagung",
+       "Bawang Merah",
+       "Bawang Putih",
+       "Cabe",
+       "Terong",
+       "Semangka",
+       "Ubi Ungu",
+       "Pisang",
+       "Lidah Buaya",
+       "Durian",
+       "Jamur Raksasa",
+       "Pohon Buah Kristal"
+   },
+   CurrentOption = {"Timun"},
+   MultipleOptions = true,
+   Flag = "MultiSeedDropdown",
+   Callback = function(Options)
+      selectedSeeds = Options
+      Rayfield:Notify({
+         Title = "PRASZ PEDIA HUB",
+         Content = "Total benih dipilih: " .. tostring(#selectedSeeds),
+         Duration = 2,
+         Image = 4483362458,
+      })
+   end,
+})
+
+ShopTab:CreateInput({
+   Name = "Jumlah Beli Per Benih (Amount)",
+   PlaceholderText = "Masukkan Angka (Default: 1)",
+   RemoveTextOnFocusLost = false,
+   Callback = function(Text)
+      local num = tonumber(Text)
+      if num and num > 0 then
+          buyAmount = num
+          Rayfield:Notify({
+             Title = "PRASZ PEDIA HUB",
+             Content = "Jumlah pembelian per benih diubah ke: " .. buyAmount,
+             Duration = 2,
+             Image = 4483362458,
+          })
+      end
+   end,
+})
+
+ShopTab:CreateToggle({
+   Name = "Beli Kuantitas Maksimal (Max)",
+   CurrentValue = false,
+   Flag = "BuyMaxToggle",
+   Callback = function(Value)
+      isMaxAmount = Value
+      local status = isMaxAmount and "Aktif (Maksimal)" or ("Manual (" .. buyAmount .. ")")
+      Rayfield:Notify({
+         Title = "PRASZ PEDIA HUB",
+         Content = "Mode Jumlah Beli: " .. status,
+         Duration = 2,
+         Image = 4483362458,
+      })
+   end,
+})
+
+ShopTab:CreateToggle({
+   Name = "Auto Buy Multi Seed (Mulai Membeli)",
+   CurrentValue = false,
+   Flag = "MultiAutoBuyToggle",
+   Callback = function(Value)
+      autoBuy = Value
+      if autoBuy then
+         Rayfield:Notify({
+            Title = "Auto Buy Aktif",
+            Content = "Membeli semua benih tercentang yang tersedia secara otomatis.",
+            Duration = 3,
+            Image = 4483362458,
+         })
+         startAutoBuy()
+      else
+         Rayfield:Notify({
+            Title = "Auto Buy Berhenti",
+            Content = "Pembelian otomatis dimatikan.",
+            Duration = 3,
+            Image = 4483362458,
+         })
+      end
+   end,
+})
+
+ShopTab:CreateInput({
+   Name = "Tambah Benih Lainnya (Custom ID)",
+   PlaceholderText = "Ketik ID benih tambahan...",
+   RemoveTextOnFocusLost = false,
+   Callback = function(Text)
+      if Text and Text ~= "" then
+          table.insert(selectedSeeds, Text)
+          Rayfield:Notify({
+             Title = "PRASZ PEDIA HUB",
+             Content = "Ditambahkan ke daftar beli: " .. Text,
+             Duration = 3,
+             Image = 4483362458,
+          })
+      end
+   end,
+})
